@@ -37,11 +37,11 @@ fn parse(input_data: &str) -> Result<(usize, Vec<Item>), Box<std::error::Error>>
     return Ok((capacity, items))
 }
 
-fn solve(capacity: usize, items: &[Item]) -> (usize, &[u32]) {
+fn solve(capacity: usize, items: &[Item]) -> (usize, Vec<u32>) {
     let mut cache: Vec<Vec<usize>> = vec![vec![0; capacity + 1]; items.len() + 1];
 
-    for i in 0..items.len() + 1 {
-        for w in 0..capacity + 1 {
+    for i in 0..=items.len() {
+        for w in 0..=capacity {
             if i == 0 || w == 0 {
                 cache[i][w] = 0;
             } else if items[i - 1].weight <= w {
@@ -52,7 +52,34 @@ fn solve(capacity: usize, items: &[Item]) -> (usize, &[u32]) {
         }
     }
 
-    (cache[items.len()][capacity], &[])
+    let mut taken = vec![0; items.len()];
+
+    let mut i = items.len();
+    let mut w = capacity;
+
+    while i > 0 && w > 0 {
+        if cache[i][w] != cache[i-1][w] {
+            taken[i - 1] = 1;
+            w -= items[i - 1].weight;
+        } else {
+            i -= 1;
+        }
+    }
+
+    (cache[items.len()][capacity], taken)
+}
+
+fn print_vec(taken: &[u32]) {
+    let mut iter = taken.iter();
+    if let Some(item) = iter.next() {
+        print!("{}", item);
+
+        for item in iter {
+            print!(" {}", item);
+        }
+
+        print!("\n");
+    }
 }
 
 fn run(file_name: &str) -> io::Result<()> {
@@ -64,7 +91,9 @@ fn run(file_name: &str) -> io::Result<()> {
     let (capacity, items) = parse(&contents).unwrap();
     let (value, taken) = solve(capacity, &items);
 
-    println!("{}", value);
+    println!("{} 1", value);
+
+    print_vec(&taken);
 
     Ok(())
 }
