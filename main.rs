@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, stdout, Write};
 use std::io;
 use std::cmp::{max, Ordering, Reverse};
 
@@ -57,34 +57,32 @@ fn dynamic_programming(capacity: usize, items: &[Item]) -> (usize, Vec<u32>) {
     let mut i = items.len();
     let mut w = capacity;
 
-    let mut new = 0;
     while i > 0 && w > 0 {
         if cache[i][w] != cache[i-1][w] {
             taken[i - 1] = 1;
             w -= items[i - 1].weight;
-            new += items[i - 1].value;
         } else {
             i -= 1;
         }
     }
 
-    println!("{}", new);
-
     (cache[items.len()][capacity], taken)
 }
 
-fn greedy_density(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
+fn sort_by_value_density(items: &mut [Item]) {
     items.sort_by_key(|item| (Reverse(item.value / item.weight), Reverse(item.value)));
+}
+
+fn greedy_density(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
+    sort_by_value_density(items);
 
     let mut remaining_capacity = capacity;
-    let mut items_inserted = 0;
     let mut value = 0;
 
     let mut taken = vec![0; items.len()];
 
     for item in items {
         if item.weight <= remaining_capacity {
-            items_inserted += 1;
             remaining_capacity -= item.weight;
             value += item.value;
             taken[item.index] = 1;
@@ -94,11 +92,90 @@ fn greedy_density(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
     (value, taken)
 }
 
+fn calculate_optimistic_value(cur_value: usize, capacity: usize, items: &mut [Item]) -> f32 {
+//    println!("{:?} {} {}", items, cur_value, capacity);
+
+    let mut remaining_capacity = capacity;
+    let mut value = cur_value as f32;
+
+    let mut last_item: Option<&Item> = None;
+
+    for item in items.iter() {
+        if item.weight <= remaining_capacity {
+            remaining_capacity -= item.weight;
+            value += item.value as f32;
+        } else {
+            last_item = Some(item);
+            break;
+        }
+    }
+
+    if last_item.is_some() && remaining_capacity > 0 {
+        let item = last_item.unwrap();
+//        println!(">>> {:?} {} {}", item, value, remaining_capacity);
+        value += item.value as f32 * remaining_capacity as f32 / item.weight as f32;
+    }
+
+    value
+}
+
+fn calculate_optimistic_value_node(items: &mut [Item], node: (usize, i32, usize)) -> f32 {
+    return calculate_optimistic_value(node.0, node.1 as usize, &mut items[node.2..])
+}
+
+fn branch_and_bound(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
+    sort_by_value_density(items);
+
+    let mut max_value = 0;
+
+    let mut stack: Vec<(usize, i32, usize)> = Vec::new();
+
+    stack.push((0, capacity as i32, 0));
+
+
+    while !stack.is_empty() {
+        print!("{}->", stack.len());
+        io::stdout().flush().unwrap();
+        let (value, cur_capacity, index) = stack.pop().unwrap();
+
+        if cur_capacity < 0 {
+            continue;
+        }
+
+        if value > max_value {
+            max_value = value;
+        }
+
+        if capacity <= 0 || index >= items.len() {
+            continue;
+        }
+
+//        let max_profit = calculate_optimistic_value(value, cur_capacity as usize, &mut items[index..]);
+
+//        println!("{} {} {} {} {}",value, cur_capacity, index, max_profit, max_value);
+
+        let node_exclude = (value, cur_capacity, index + 1);
+        if calculate_optimistic_value_node(items, node_exclude) > value as f32 {
+            stack.push(node_exclude);
+        }
+
+        let node_include = (value + items[index].value, cur_capacity - items[index].weight as i32, index + 1);
+
+        if calculate_optimistic_value_node(items, node_include) > value as f32 {
+            stack.push(node_include);
+        }
+    }
+
+    println!("{}", max_value);
+
+    return greedy_density(capacity, items);
+}
+
 fn solve(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
     if capacity * items.len() <= 100_000_000 {
         dynamic_programming(capacity, items)
     } else {
-        greedy_density(capacity, items)
+        branch_and_bound(capacity, items)
     }
 }
 

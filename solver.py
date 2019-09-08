@@ -26,7 +26,7 @@ def solve_it(input_data):
 
     optimal = 1
     if item_count < 400 or len(items) == 1000:
-        value, taken = greedy(items, capacity)
+        value, taken = dynamic_programming(items, capacity)
     else:
         optimal = 0
         value, taken = greedy(items, capacity)
@@ -66,10 +66,12 @@ def dynamic_programming(items, capacity):
 
 
 def branch_and_bound(items, capacity):
+    sorted_items = sorted(items, key=lambda item: -item.value)
+    items = sorted(sorted_items, key=lambda item: -item.value/item.weight)
 
     def calculate_max_profit(cur_value, capacity, index):
         # print(cur_value, capacity)
-        cur_items = sorted(items[index:], key=lambda item: -item.value/item.weight)
+        cur_items = items[index:]
         # print(cur_items)
 
         remaining_capacity = capacity
@@ -84,6 +86,7 @@ def branch_and_bound(items, capacity):
                 break
         
         if (i + index) != len(items):
+            # print('<<<<<<<<', item, cur_value, remaining_capacity)
             # print(cur_value, remaining_capacity, item)
             cur_value += item.value * remaining_capacity / float(item.weight)
 
@@ -109,13 +112,14 @@ def branch_and_bound(items, capacity):
         
         # print('>>>', cur_value, cur_capacity)
         cur_max_profit = calculate_max_profit(cur_value, cur_capacity, index)
+        # print(cur_value, cur_capacity, index, cur_max_profit, max_value)
         # print(cur_max_profit)
 
         if cur_max_profit < max_value:
             continue
 
+        queue.put((cur_value, cur_capacity, index + 1))
         queue.put((cur_value + items[index].value, cur_capacity - items[index].weight, index + 1))
-        queue.put((cur_value,cur_capacity, index + 1))
 
     return max_value, []
 
