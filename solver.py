@@ -26,7 +26,7 @@ def solve_it(input_data):
 
     optimal = 1
     if item_count < 400 or len(items) == 1000:
-        value, taken = dynamic_programming(items, capacity)
+        value, taken = greedy(items, capacity)
     else:
         optimal = 0
         value, taken = greedy(items, capacity)

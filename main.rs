@@ -2,7 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::io;
-use std::cmp::max;
+use std::cmp::{max, Ordering, Reverse};
 
 #[derive(Debug)]
 struct Item {
@@ -37,7 +37,7 @@ fn parse(input_data: &str) -> Result<(usize, Vec<Item>), Box<std::error::Error>>
     return Ok((capacity, items))
 }
 
-fn solve(capacity: usize, items: &[Item]) -> (usize, Vec<u32>) {
+fn dynamic_programming(capacity: usize, items: &[Item]) -> (usize, Vec<u32>) {
     let mut cache: Vec<Vec<usize>> = vec![vec![0; capacity + 1]; items.len() + 1];
 
     for i in 0..=items.len() {
@@ -57,16 +57,49 @@ fn solve(capacity: usize, items: &[Item]) -> (usize, Vec<u32>) {
     let mut i = items.len();
     let mut w = capacity;
 
+    let mut new = 0;
     while i > 0 && w > 0 {
         if cache[i][w] != cache[i-1][w] {
             taken[i - 1] = 1;
             w -= items[i - 1].weight;
+            new += items[i - 1].value;
         } else {
             i -= 1;
         }
     }
 
+    println!("{}", new);
+
     (cache[items.len()][capacity], taken)
+}
+
+fn greedy_density(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
+    items.sort_by_key(|item| (Reverse(item.value / item.weight), Reverse(item.value)));
+
+    let mut remaining_capacity = capacity;
+    let mut items_inserted = 0;
+    let mut value = 0;
+
+    let mut taken = vec![0; items.len()];
+
+    for item in items {
+        if item.weight <= remaining_capacity {
+            items_inserted += 1;
+            remaining_capacity -= item.weight;
+            value += item.value;
+            taken[item.index] = 1;
+        }
+    }
+
+    (value, taken)
+}
+
+fn solve(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
+    if capacity * items.len() <= 100_000_000 {
+        dynamic_programming(capacity, items)
+    } else {
+        greedy_density(capacity, items)
+    }
 }
 
 fn print_vec(taken: &[u32]) {
@@ -88,8 +121,8 @@ fn run(file_name: &str) -> io::Result<()> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let (capacity, items) = parse(&contents).unwrap();
-    let (value, taken) = solve(capacity, &items);
+    let (capacity, mut items) = parse(&contents).unwrap();
+    let (value, taken) = solve(capacity, &mut items);
 
     println!("{} 1", value);
 
