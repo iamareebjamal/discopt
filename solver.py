@@ -25,11 +25,10 @@ def solve_it(input_data):
         items.append(Item(i-1, int(parts[0]), int(parts[1])))
 
     optimal = 1
-    if item_count < 400 or len(items) == 1000:
+    if item_count < 400:
         value, taken = dynamic_programming(items, capacity)
     else:
-        optimal = 0
-        value, taken = greedy(items, capacity)
+        value, taken = branch_and_bound(items, capacity)
 
     output_data = str(value) + ' ' + str(optimal) + '\n'
     output_data += ' '.join(map(str, taken))
@@ -94,18 +93,22 @@ def branch_and_bound(items, capacity):
         return cur_value
         
     max_value = 0
+    max_taken = None
+
+    taken_root = [0]*len(items)
 
     queue = LifoQueue()
-    queue.put((0, capacity, 0))
+    queue.put((0, capacity, 0, taken_root))
     
     while not queue.empty():
-        cur_value, cur_capacity, index = queue.get()
+        cur_value, cur_capacity, index, taken = queue.get()
 
         if cur_capacity < 0:
             continue
         
         if cur_value > max_value:
             max_value = cur_value
+            max_taken = taken
         
         if cur_capacity <= 0 or index >= len(items):
             continue
@@ -117,11 +120,13 @@ def branch_and_bound(items, capacity):
 
         if cur_max_profit < max_value:
             continue
+        
+        queue.put((cur_value, cur_capacity, index + 1, taken))
+        include_taken = taken[:]
+        include_taken[items[index].index] = 1
+        queue.put((cur_value + items[index].value, cur_capacity - items[index].weight, index + 1, include_taken))
 
-        queue.put((cur_value, cur_capacity, index + 1))
-        queue.put((cur_value + items[index].value, cur_capacity - items[index].weight, index + 1))
-
-    return max_value, []
+    return max_value, max_taken
 
 
 def greedy(items, capacity):
