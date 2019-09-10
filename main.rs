@@ -134,8 +134,6 @@ fn branch_and_bound(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
 
 
     while !stack.is_empty() {
-        print!("{}->", stack.len());
-        io::stdout().flush().unwrap();
         let (value, cur_capacity, index) = stack.pop().unwrap();
 
         if cur_capacity < 0 {
@@ -173,7 +171,7 @@ fn branch_and_bound(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
 
 fn solve(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
     if capacity * items.len() <= 100_000_000 {
-        dynamic_programming(capacity, items)
+        branch_and_bound(capacity, items)
     } else {
         branch_and_bound(capacity, items)
     }
