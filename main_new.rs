@@ -1,8 +1,8 @@
 use std::env;
 use std::fs::File;
-use std::io::{Read, stdout, Write};
+use std::io::Read;
 use std::io;
-use std::cmp::{max, Ordering, Reverse};
+use std::cmp::{max, Reverse};
 
 #[derive(Debug)]
 struct Item {
@@ -11,18 +11,17 @@ struct Item {
     weight: usize
 }
 
-fn parse(input_data: &str) -> Result<(usize, Vec<Item>), Box<std::error::Error>> {
+fn parse(input_data: &str) -> Result<(usize, Vec<Item>), Box<dyn std::error::Error>> {
     let mut iter = input_data.lines();
 
-    let mut size_capacity: Vec<usize> = iter.next()
+    let size_capacity: Vec<usize> = iter.next()
         .unwrap()
         .split_whitespace()
         .map(|s| s.parse().unwrap())
         .collect();
-    let size = size_capacity[0];
     let capacity = size_capacity[1];
 
-    let mut items: Vec<Item> = iter.enumerate()
+    let items: Vec<Item> = iter.enumerate()
         .map(|(index, line)| {
             let item_lines: Vec<usize> = line.split_whitespace()
                 .map(|s| s.parse().unwrap())
@@ -92,35 +91,53 @@ fn greedy_density(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
     (value, taken)
 }
 
-fn calculate_optimistic_value(cur_value: usize, capacity: usize, items: &mut [Item]) -> f32 {
-//    println!("{:?} {} {}", items, cur_value, capacity);
-
-    let mut remaining_capacity = capacity;
-    let mut value = cur_value as f32;
-
-    let mut last_item: Option<&Item> = None;
-
-    for item in items.iter() {
-        if item.weight <= remaining_capacity {
-            remaining_capacity -= item.weight;
-            value += item.value as f32;
-        } else {
-            last_item = Some(item);
-            break;
-        }
-    }
-
-    if last_item.is_some() && remaining_capacity > 0 {
-        let item = last_item.unwrap();
-//        println!(">>> {:?} {} {}", item, value, remaining_capacity);
-        value += item.value as f32 * remaining_capacity as f32 / item.weight as f32;
-    }
-
-    value
+struct Node {
+    value: usize,
+    capacity: i32,
+    index: usize,
+    bound: f32
 }
 
-fn calculate_optimistic_value_node(items: &mut [Item], node: (usize, i32, usize)) -> f32 {
-    return calculate_optimistic_value(node.0, node.1 as usize, &mut items[node.2..])
+impl Node {
+
+    fn new(value: usize, capacity: i32, index: usize) -> Node {
+        return Node { value, capacity, index, bound: 0.0 }
+    }
+
+    fn calculate_optimistic_value(&mut self, all_items: &mut [Item]) -> f32 {
+        if self.capacity < 0 {
+            self.bound = 0.0;
+
+            return self.bound;
+        }
+
+        let mut remaining_capacity = self.capacity as usize;
+        let mut value = self.value as f32;
+        let items = &mut all_items[self.index..];
+
+        let mut last_item: Option<&Item> = None;
+
+        for item in items.iter() {
+            if item.weight <= remaining_capacity {
+                remaining_capacity -= item.weight;
+                value += item.value as f32;
+            } else {
+                last_item = Some(item);
+                break;
+            }
+        }
+
+        if last_item.is_some() && remaining_capacity > 0 {
+            let item = last_item.unwrap();
+            // println!(">>> {:?} {} {}", item, value, remaining_capacity);
+            value += item.value as f32 * remaining_capacity as f32 / item.weight as f32;
+        }
+
+        self.bound = value;
+
+        return self.bound
+    }
+
 }
 
 fn branch_and_bound(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
@@ -128,49 +145,39 @@ fn branch_and_bound(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
 
     let mut max_value = 0;
 
-    let mut stack: Vec<(usize, i32, usize)> = Vec::new();
+    let mut stack: Vec<Node> = Vec::new();
 
-    stack.push((0, capacity as i32, 0));
-
+    stack.push(Node::new(0, capacity as i32, 0));
 
     while !stack.is_empty() {
-        let (value, cur_capacity, index) = stack.pop().unwrap();
+        let node = stack.pop().unwrap();
 
-        if cur_capacity < 0 {
+        if node.bound < max_value as f32 {
             continue;
         }
 
-        if value > max_value {
-            max_value = value;
+        if node.value > max_value {
+            max_value = node.value;
         }
 
-        if capacity <= 0 || index >= items.len() {
+        if node.index >= items.len() {
             continue;
         }
 
-       let max_profit = calculate_optimistic_value(value, cur_capacity as usize, &mut items[index..]);
-
-       if max_profit < max_value as f32 {
-           continue;
-       }
-
-//        println!("{} {} {} {} {}",value, cur_capacity, index, max_profit, max_value);
-
-        let node_exclude = (value, cur_capacity, index + 1);
-        // if calculate_optimistic_value_node(items, node_exclude) > max_value as f32 {
+        let mut node_exclude = Node::new(node.value, node.capacity, node.index + 1);
+        if node_exclude.calculate_optimistic_value(items) > max_value as f32 {
             stack.push(node_exclude);
-        // }
+        }
 
-        let node_include = (value + items[index].value, cur_capacity - items[index].weight as i32, index + 1);
-
-        // if calculate_optimistic_value_node(items, node_include) > max_value as f32 {
+        let mut node_include = Node::new(node.value + items[node.index].value, node.capacity - items[node.index].weight as i32, node.index + 1);
+        if node_include.calculate_optimistic_value(items) > max_value as f32 {
             stack.push(node_include);
-        // }
+        }
     }
 
     println!("{}", max_value);
 
-    return dynamic_programming(capacity, items);
+    return greedy_density(capacity, items);
 }
 
 fn solve(capacity: usize, items: &mut [Item]) -> (usize, Vec<u32>) {
@@ -215,5 +222,5 @@ fn main() {
 
     let file_name = &args[1];
 
-    run(file_name);
+    run(file_name).unwrap();
 }
